@@ -1,0 +1,154 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum LinkStatus {
+  ACTIVE
+  DISABLED
+  EXPIRED
+}
+
+enum RedirectType {
+  TEMPORARY
+  PERMANENT
+}
+
+enum TokenType {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+}
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  passwordHash  String
+  name          String?
+  emailVerified Boolean  @default(false)
+
+  links   Link[]
+  folders Folder[]
+  tags    Tag[]
+  tokens  AuthToken[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Link {
+  id          String @id @default(uuid())
+  shortCode   String @unique
+  originalUrl String
+
+  title String?
+  alias String? @unique
+
+  status       LinkStatus   @default(ACTIVE)
+  redirectType RedirectType @default(TEMPORARY)
+
+  expiresAt DateTime?
+  maxClicks Int?
+  clickCount Int @default(0)
+
+  passwordHash String?
+  isPublic     Boolean @default(true)
+
+  userId String?
+  user   User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  folderId String?
+  folder   Folder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+
+  tags   LinkTag[]
+  clicks ClickEvent[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([shortCode])
+  @@index([expiresAt])
+  @@index([status])
+}
+
+model ClickEvent {
+  id String @id @default(uuid())
+
+  linkId String
+  link   Link @relation(fields: [linkId], references: [id], onDelete: Cascade)
+
+  clickedAt DateTime @default(now())
+
+  ipAddress      String?
+  country        String?
+  city           String?
+  referrer       String?
+  userAgent      String?
+  device         String?
+  browser        String?
+  operatingSystem String?
+
+  @@index([linkId])
+  @@index([clickedAt])
+  @@index([country])
+}
+
+model Folder {
+  id   String @id @default(uuid())
+  name String
+
+  userId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  links Link[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, name])
+}
+
+model Tag {
+  id   String @id @default(uuid())
+  name String
+
+  userId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  links LinkTag[]
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, name])
+}
+
+model LinkTag {
+  linkId String
+  tagId  String
+
+  link Link @relation(fields: [linkId], references: [id], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([linkId, tagId])
+}
+
+model AuthToken {
+  id String @id @default(uuid())
+
+  token String @unique
+  type  TokenType
+
+  expiresAt DateTime
+
+  userId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([token])
+}
